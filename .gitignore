@@ -1,0 +1,110 @@
+# macOS 文件
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 编辑器和临时文件
+*.swp
+*~
+*.swo
+*.tmp
+*.bak
+*.orig
+Thumbs.db
+Icon?
+
+# VSCode / IDE
+.vscode/
+*.code-workspace
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln
+*.vcxproj*
+.vs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node
+node_modules/
+
+# C/C++ 构建产物
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.elf
+*.axf
+*.bin
+*.hex
+*.map
+*.lst
+*.lss
+*.sym
+*.crf
+*.d
+*.dep
+
+# CMake / Make
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+cmake-build*/
+build*/
+compile_commands.json
+install_manifest.txt
+Testing/
+*.ninja_deps
+*.ninja_log
+
+# rpi_controller 构建目录
+/rpi_controller/build/
+/rpi_controller/output/
+/rpi_controller/*.o
+/rpi_controller/*.bin
+
+# STM32 构建/输出文件
+/stm32/OBJ/
+/stm32/*.axf
+/stm32/*.build_log.htm
+/stm32/*.lnp
+/stm32/*.sct
+/stm32/*.htm
+/stm32/*.crf
+/stm32/*.d
+/stm32/*.dep
+/stm32/*.map
+# 全局忽略名为 OBJ 的目录
+**/OBJ/
+
+# Keil/MDK/IAR
+*.uvproj*
+*.uvoptx
+*.uvguix*
+
+# 日志 / 临时
+*.log
+
+# 环境 / 虚拟环境
+.env
+.env.local
+venv/
+env/
+
+# 压缩包 / 发布产物
+*.tar
+*.tar.gz
+*.zip
+*.7z

@@ -1,0 +1,9 @@
+{
+  "led_idle": 1,
+  "m1_dir": "forward",
+  "m1_speed": 1200,
+  "m1_duration_ms": 1500,
+  "m2_dir": "reverse",
+  "m2_speed": 800,
+  "m2_duration_ms": 1000
+}
