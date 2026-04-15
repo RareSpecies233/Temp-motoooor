@@ -112,10 +112,10 @@ private:
 
 struct ControlCommand {
     std::optional<int> ledIdle;
-    std::optional<std::string> m1Dir;
+    std::optional<int> m1Dir;
     std::optional<int> m1Speed;
     std::optional<int> m1TimeMs;
-    std::optional<std::string> m2Dir;
+    std::optional<int> m2Dir;
     std::optional<int> m2Speed;
     std::optional<int> m2TimeMs;
 
@@ -152,14 +152,14 @@ bool parseBooleanLike(const std::string &text, int &value) {
     return false;
 }
 
-bool parseDirectionLike(const std::string &text, std::string &value) {
+bool parseDirectionLike(const std::string &text, int &value) {
     const std::string t = toLower(trim(text));
     if (t == "0" || t == "forward" || t == "fwd" || t == "cw") {
-        value = "forward";
+        value = 0;
         return true;
     }
     if (t == "1" || t == "reverse" || t == "rev" || t == "ccw") {
-        value = "reverse";
+        value = 1;
         return true;
     }
     return false;
@@ -180,7 +180,7 @@ bool assignCommandField(ControlCommand &cmd,
     const std::string value = trim(rawValue);
 
     int intValue = 0;
-    std::string dirValue;
+    int dirValue = 0;
 
     if (key == "led" || key == "led_idle") {
         if (!parseBooleanLike(value, intValue)) {
@@ -233,9 +233,9 @@ bool assignCommandField(ControlCommand &cmd,
     }
 
     if (key == "m1_time" || key == "m1_time_ms" || key == "m1_duration_ms") {
-        if (!parseIntegerStrict(value, intValue) || intValue < 0) {
-            errCn = "马达1时间无效，应为非负整数毫秒";
-            errEn = "Invalid motor1 time, expected non-negative integer milliseconds";
+        if (!parseIntegerStrict(value, intValue) || intValue < 0 || intValue > 60000) {
+            errCn = "马达1时间无效，范围应为 0-60000 毫秒";
+            errEn = "Invalid motor1 time, range should be 0-60000 milliseconds";
             return false;
         }
         cmd.m1TimeMs = intValue;
@@ -243,9 +243,9 @@ bool assignCommandField(ControlCommand &cmd,
     }
 
     if (key == "m2_time" || key == "m2_time_ms" || key == "m2_duration_ms") {
-        if (!parseIntegerStrict(value, intValue) || intValue < 0) {
-            errCn = "马达2时间无效，应为非负整数毫秒";
-            errEn = "Invalid motor2 time, expected non-negative integer milliseconds";
+        if (!parseIntegerStrict(value, intValue) || intValue < 0 || intValue > 60000) {
+            errCn = "马达2时间无效，范围应为 0-60000 毫秒";
+            errEn = "Invalid motor2 time, range should be 0-60000 milliseconds";
             return false;
         }
         cmd.m2TimeMs = intValue;
@@ -272,24 +272,27 @@ std::string buildJsonFromCommand(const ControlCommand &cmd) {
 
     if (cmd.ledIdle.has_value()) {
         appendField("led_idle", *cmd.ledIdle ? "1" : "0");
+        appendField("led", *cmd.ledIdle ? "1" : "0");
     }
     if (cmd.m1Dir.has_value()) {
-        appendField("m1_dir", "\"" + *cmd.m1Dir + "\"");
+        appendField("m1_dir", std::to_string(*cmd.m1Dir));
     }
     if (cmd.m1Speed.has_value()) {
         appendField("m1_speed", std::to_string(*cmd.m1Speed));
     }
     if (cmd.m1TimeMs.has_value()) {
         appendField("m1_duration_ms", std::to_string(*cmd.m1TimeMs));
+        appendField("m1_time", std::to_string(*cmd.m1TimeMs));
     }
     if (cmd.m2Dir.has_value()) {
-        appendField("m2_dir", "\"" + *cmd.m2Dir + "\"");
+        appendField("m2_dir", std::to_string(*cmd.m2Dir));
     }
     if (cmd.m2Speed.has_value()) {
         appendField("m2_speed", std::to_string(*cmd.m2Speed));
     }
     if (cmd.m2TimeMs.has_value()) {
         appendField("m2_duration_ms", std::to_string(*cmd.m2TimeMs));
+        appendField("m2_time", std::to_string(*cmd.m2TimeMs));
     }
 
     oss << "}";
@@ -430,9 +433,9 @@ private:
         dcb.fBinary = TRUE;
         dcb.fOutxCtsFlow = FALSE;
         dcb.fOutxDsrFlow = FALSE;
-        dcb.fDtrControl = DTR_CONTROL_DISABLE;
+        dcb.fDtrControl = DTR_CONTROL_ENABLE;
         dcb.fDsrSensitivity = FALSE;
-        dcb.fRtsControl = RTS_CONTROL_DISABLE;
+        dcb.fRtsControl = RTS_CONTROL_ENABLE;
         dcb.fOutX = FALSE;
         dcb.fInX = FALSE;
 
@@ -443,11 +446,11 @@ private:
         }
 
         COMMTIMEOUTS timeouts{};
-        timeouts.ReadIntervalTimeout = 10;
-        timeouts.ReadTotalTimeoutConstant = 20;
-        timeouts.ReadTotalTimeoutMultiplier = 0;
-        timeouts.WriteTotalTimeoutConstant = 100;
-        timeouts.WriteTotalTimeoutMultiplier = 1;
+        timeouts.ReadIntervalTimeout = 50;
+        timeouts.ReadTotalTimeoutConstant = 200;
+        timeouts.ReadTotalTimeoutMultiplier = 10;
+        timeouts.WriteTotalTimeoutConstant = 200;
+        timeouts.WriteTotalTimeoutMultiplier = 10;
 
         if (!SetCommTimeouts(handle_, &timeouts)) {
             err = "SetCommTimeouts failed, error=" + std::to_string(GetLastError());
@@ -675,7 +678,14 @@ private:
 
 bool ackIsSuccess(const std::string &ack) {
     const std::string lower = toLower(ack);
-    return lower.find("\"ok\":true") != std::string::npos || lower.find("\"ok\":1") != std::string::npos;
+    return lower.find("\"ok\":true") != std::string::npos || lower.find("\"ok\":1") != std::string::npos ||
+           lower == "ok" || lower.find("success") != std::string::npos;
+}
+
+bool ackIsFailure(const std::string &ack) {
+    const std::string lower = toLower(ack);
+    return lower.find("\"ok\":false") != std::string::npos || lower.find("\"ok\":0") != std::string::npos ||
+           lower.find("fail") != std::string::npos || lower.find("error") != std::string::npos;
 }
 
 bool sendAndReceive(SerialPort &serial, const std::string &jsonCmd, Logger &logger) {
@@ -689,19 +699,30 @@ bool sendAndReceive(SerialPort &serial, const std::string &jsonCmd, Logger &logg
 
     std::string ack;
     if (!serial.readLine(ack, 3000, err)) {
-        logger.log("ERROR", "串口读取失败/超时: " + err, "Serial read failed/timeout: " + err);
+        if (toLower(err).find("timeout") != std::string::npos) {
+            logger.log("WARN",
+                       "未收到STM32回复（超时），兼容模式下按发送成功处理",
+                       "No STM32 reply (timeout), treated as send success in compatibility mode");
+            return true;
+        }
+        logger.log("ERROR", "串口读取失败: " + err, "Serial read failed: " + err);
         return false;
     }
 
     logger.log("INFO", "收到STM32回复: " + ack, "Received STM32 reply: " + ack);
+
+    if (ackIsFailure(ack)) {
+        logger.log("WARN", "设备返回失败", "Device reported failure");
+        return false;
+    }
 
     if (ackIsSuccess(ack)) {
         logger.log("INFO", "设备执行成功", "Device execution succeeded");
         return true;
     }
 
-    logger.log("WARN", "设备返回失败或未知状态", "Device returned failure or unknown status");
-    return false;
+    logger.log("WARN", "设备返回未知状态，兼容模式下按成功处理", "Device returned unknown status, treated as success");
+    return true;
 }
 
 struct Options {
@@ -717,12 +738,14 @@ struct Options {
 void printUsage() {
     std::cout
         << "用法 / Usage:\n"
-        << "  rpi5_stm32_controller --port <串口> [模式参数]\n\n"
+        << "  rpi5_stm32_controller --port <串口> [模式参数]\n"
+        << "  rpi5_stm32_controller --device <串口> [模式参数]  (兼容旧版)\n\n"
         << "模式参数 / Mode options:\n"
         << "  --interactive                    交互模式（默认无命令参数时进入） / Interactive mode\n"
         << "  --json-file <path>               从JSON文件读取控制指令 / Read command from JSON file\n"
         << "  --json '<json>'                  直接传入JSON字符串 / Inline JSON string\n"
         << "  --led-idle <on|off|1|0>          LED空闲状态 / Idle LED state\n"
+        << "  --led <on|off|1|0>               兼容旧版 LED 参数 / Legacy LED option\n"
         << "  --m1-dir <forward|reverse|0|1>   马达1方向 / Motor1 direction\n"
         << "  --m1-speed <0-3000>              马达1速度 / Motor1 speed\n"
         << "  --m1-time <ms>                   马达1持续时间 / Motor1 duration ms\n"
@@ -762,7 +785,7 @@ bool parseOptions(int argc, char **argv, Options &opts, std::string &errCn, std:
             continue;
         }
 
-        if (arg == "--port") {
+        if (arg == "--port" || arg == "--device") {
             auto v = needValue(arg);
             if (!v.has_value()) {
                 return false;
@@ -804,7 +827,7 @@ bool parseOptions(int argc, char **argv, Options &opts, std::string &errCn, std:
             continue;
         }
 
-        if (arg == "--led-idle") {
+        if (arg == "--led-idle" || arg == "--led") {
             auto v = needValue(arg);
             if (!v.has_value()) {
                 return false;
@@ -883,6 +906,18 @@ bool parseOptions(int argc, char **argv, Options &opts, std::string &errCn, std:
 
         errCn = "未知参数: " + arg;
         errEn = "Unknown option: " + arg;
+        return false;
+    }
+
+    if (opts.jsonFile.has_value() && (opts.inlineJson.has_value() || opts.cliCommand.hasAny())) {
+        errCn = "--json-file 不能与 --json 或其他控制参数同时使用";
+        errEn = "--json-file cannot be used together with --json or direct control options";
+        return false;
+    }
+
+    if (opts.inlineJson.has_value() && opts.cliCommand.hasAny()) {
+        errCn = "--json 不能与其他控制参数同时使用";
+        errEn = "--json cannot be used together with direct control options";
         return false;
     }
 

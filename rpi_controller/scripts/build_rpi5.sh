@@ -6,6 +6,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build-rpi5"
 TOOLCHAIN_FILE="$PROJECT_ROOT/cmake/toolchains/rpi5-aarch64.cmake"
 
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+  if ! grep -Fq "CMAKE_HOME_DIRECTORY:INTERNAL=$PROJECT_ROOT" "$BUILD_DIR/CMakeCache.txt"; then
+    echo "[INFO] Stale CMake cache detected in $BUILD_DIR, cleaning it."
+    rm -rf "$BUILD_DIR"
+  fi
+fi
+
 # possible cross C++ compiler names
 CXX_CANDIDATES=("aarch64-linux-gnu-g++" "aarch64-unknown-linux-gnu-g++" "aarch64-none-linux-gnu-g++")
 
@@ -23,8 +30,6 @@ if [ -z "${CROSS_CXX}" ]; then
   exit 1
 fi
 
-CROSS_CC="${CROSS_CXX/g++/gcc}"
-
 # Optional: allow providing a sysroot via environment variable AARCH64_SYSROOT
 CMAKE_SYSROOT_OPTION=""
 if [ -n "${AARCH64_SYSROOT:-}" ]; then
@@ -35,7 +40,6 @@ fi
 cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" \
   -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_COMPILER="$CROSS_CC" \
   -DCMAKE_CXX_COMPILER="$CROSS_CXX" \
   $CMAKE_SYSROOT_OPTION
 
